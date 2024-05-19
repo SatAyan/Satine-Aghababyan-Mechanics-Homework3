@@ -5,8 +5,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
-
+import java.util.Random;
+import java.util.ArrayList;
+import java.util.Arrays;
 import javax.swing.*;
+import java.util.ArrayList;
 
 public class TimeTable extends JFrame implements ActionListener {
 
@@ -32,7 +35,7 @@ public class TimeTable extends JFrame implements ActionListener {
 	}
 	
 	public void setTools() {
-		String capField[] = {"Slots:", "Courses:", "Clash File:", "Iters:", "Shift:"};
+		String capField[] = {"Slots:", "Courses:", "Clash File:", "Iters:", "Shift:", "Cycles:"};
 		field = new JTextField[capField.length];
 		
 	String capButton[] = {"Load", "Start", "Step", "Print", "Exit", "Continue", "Train", "Interupt"};
@@ -79,10 +82,8 @@ public class TimeTable extends JFrame implements ActionListener {
 		int min, step, clashes;
 		try(BufferedWriter writer = new BufferedWriter(new FileWriter("log.txt", true))) {
 			LocalDateTime start = LocalDateTime.now();
-			if (getButtonIndex((JButton) click.getSource()) != 2) {
-				writer.write("Algorithm Run at: " + start + "\n");
-				writer.write("Slots: " + field[0].getText() + ", Courses: " + field[1].getText() + ", File: " + field[2].getText() + ", Iters: " + field[3].getText() + ", Shifts: " + field[4].getText() + "\n");
-			}
+			writer.write("Algorithm Run at: " + start + "\n");
+			writer.write("Slots: " + field[0].getText() + ", Courses: " + field[1].getText() + ", File: " + field[2].getText() + ", Iters: " + field[3].getText() + ", Shifts: " + field[4].getText() + "\n");
 			
 			switch (getButtonIndex((JButton) click.getSource())) {
 			case 0:
@@ -111,6 +112,7 @@ public class TimeTable extends JFrame implements ActionListener {
 				setVisible(true);
 				writer.write("\t\t\"Start\"\n");
 				writer.write("\t\t\t\tMin clashes = " + min + "\tat step " + step + "\n");
+				courses.printSlotStatus(writer);
 				break;
 			case 2:
 				courses.iterate(Integer.parseInt(field[4].getText()));
@@ -152,16 +154,17 @@ public class TimeTable extends JFrame implements ActionListener {
 				break;
 			case 7:
 				writer.write("\t\t\"Interrupt\"\n");
-				interruptIterationsWithUnitUpdates(Integer.parseInt(field[3].getText()), Integer.parseInt(field[4].getText()), Integer.parseInt(field[0].getText()), writer);
+				min = Integer.MAX_VALUE;
+				step = 0;
+				clashes = 0;
+				interruptIterationsWithUnitUpdates(min, step, clashes, Integer.parseInt(field[3].getText()), Integer.parseInt(field[4].getText()), Integer.parseInt(field[0].getText()), writer);
 				break;
 			}
-			if (getButtonIndex((JButton) click.getSource()) != 2) {
-				LocalDateTime end = LocalDateTime.now();
-				Duration duration = Duration.between(start, end);
-				writer.write("Algorithm Finished at: " + end + "\n");
-				writer.write("Duration of the algorithm = " + duration.toMillis() + " milliseconds\n");
-				writer.write("-------------------------------------------------------------------\n");
-			}
+			LocalDateTime end = LocalDateTime.now();
+			Duration duration = Duration.between(start, end);
+			writer.write("Algorithm Finished at: " + end + "\n");
+			writer.write("Duration of the algorithm = " + duration.toMillis() + " milliseconds\n");
+			writer.write("-------------------------------------------------------------------\n");
 		}
 		catch (IOException e) {
 			e.printStackTrace();
@@ -184,7 +187,7 @@ public class TimeTable extends JFrame implements ActionListener {
 				clash_free_timeslots[count++] = i;
 			}
 		}
-		return clash_free_timeslots;
+		return Arrays.copyOf(clash_free_timeslots, count);
 	}
 
 	private void trainAutoassociator(int[] clash_free_slots, BufferedWriter writer) throws IOException {
@@ -192,16 +195,33 @@ public class TimeTable extends JFrame implements ActionListener {
 		writer.write("used timeslotes = " + java.util.Arrays.toString(clash_free_slots) + "\n");
 	}
 
-	public void interruptIterationsWithUnitUpdates(int num_of_iters, int num_of_shifts, int num_of_slots, BufferedWriter writer) throws IOException {
-		for (int i = 0; i < num_of_iters; i++) {
-			tool[2].doClick();
-			int[] clash_free_slots = clashFreeSlots(num_of_slots);
-			trainAutoassociator(clash_free_slots, writer);
-			int index = associator.unitUpdate(clash_free_slots);
-			int[] updated_slots = new int[]{index};
-			writer.write("Iteration = " + i + ", Shifts = " + num_of_shifts + ", Timeslot Index = " + index + "\n" + "Updated timslots = " + java.util.Arrays.toString(updated_slots) + "\n");
-		}
-	}
+	public void interruptIterationsWithUnitUpdates(int min, int step, int clashes, int num_of_iters, int num_of_shifts, int num_of_slots, BufferedWriter writer) throws IOException {
+        ArrayList<Integer> updated_slots = new ArrayList<>();
+        writer.write("Shifts = " + num_of_shifts + ",\t Slots = " + num_of_slots + ",\t Cycles = " + Integer.parseInt(field[5].getText()) + "\n");
+        for (int i = 0; i < num_of_iters; i++) {
+            writer.write("Iteration = " + i + "\n");
+            courses.iterate(Integer.parseInt(field[4].getText()));
+            draw();
+            clashes = courses.clashesLeft();
+            if (clashes < min) {
+                min = clashes;
+                step = i;
+            }
+            if (i % Integer.parseInt(field[5].getText()) == 0 && i != 0) {
+                int[] current_slots = new int[courses.length()];
+                for (int j = 1; j < courses.length(); j++) {
+                    current_slots[j] = courses.slot(j);
+                }
+                associator.unitUpdate(current_slots);
+                for (int j = 1; j < courses.length(); j++) {
+                    courses.setSlot(j, current_slots[j]);
+                }
+                writer.write("Updated timeslots: " + Arrays.toString(current_slots) + "\n");
+                updated_slots.add(i);
+            }
+            writer.write("\t\t\t\tMin clashes = " + min + "\tat step " + step + "\n");
+        }
+    }
 
 	public static void main(String[] args) {
 		new TimeTable();
