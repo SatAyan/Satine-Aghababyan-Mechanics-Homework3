@@ -1,5 +1,6 @@
 import java.io.*;
 import java.util.StringTokenizer;
+import java.io.BufferedWriter;
 
 public class CourseArray {
 
@@ -83,6 +84,28 @@ public class CourseArray {
 				elements[index].setForce();
 				elements[index].shift(period);
 			}
+		}
+	}
+
+	public int[] slotStatus(int slot) {
+		int result[] = new int[2];
+		for (int i = 1; i < elements.length; i++) {
+			if (elements[i].mySlot == slot) {
+				result[0]++;
+				result[1] += elements[i].clashSize();
+			}
+		}
+		return result;
+	}
+
+	public void printSlotStatus(BufferedWriter writer) throws IOException {
+		System.out.println("Slot\tCourses\tClashsize");
+		writer.write("Slot Courses Clashsize");
+		int status[] = null;
+		for (int slot = 0; slot < period; slot++) {
+			status = slotStatus(slot);
+			System.out.println(slot + "\t" + status[0] + "\t" + status[1]);
+			writer.write(slot + "\t" + status[0] + "\t" + status[1] + "\n");
 		}
 	}
 	
